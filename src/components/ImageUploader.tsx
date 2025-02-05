@@ -2,7 +2,7 @@
 
 import { useState, useCallback} from 'react';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 interface Props {
   onImageSelect: (imageUrl: string | null) => void;
@@ -15,11 +15,16 @@ export default function ImageUploader({ onImageSelect, onPredictionsReceived }: 
   
   // Get API URL from environment or use current domain with port 5000
   const getApiUrl = () => {
+    // Use environment variable for API URL
     const backendUrl = process.env.NEXT_PUBLIC_API_URL;
     if (backendUrl) return backendUrl;
     
-    // Default to HTTP in development
-    return 'http://localhost:5000';
+    // Fallback for local development only
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://localhost:5000';
+    }
+    
+    throw new Error('NEXT_PUBLIC_API_URL environment variable is not set');
   };
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -53,8 +58,11 @@ export default function ImageUploader({ onImageSelect, onPredictionsReceived }: 
       onPredictionsReceived(response.data.predictions);
     } catch (error) {
       console.error('Error classifying image:', error);
-      // Add user-friendly error message
-      alert('Failed to process image. Please try again.');
+      // More detailed error message with type checking
+      const errorMessage = error instanceof AxiosError 
+        ? error.response?.data?.error 
+        : 'Failed to process image. Please try again.';
+      alert(errorMessage);
     } finally {
       setIsLoading(false);
     }
