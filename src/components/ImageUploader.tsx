@@ -15,6 +15,10 @@ export default function ImageUploader({ onImageSelect, onPredictionsReceived }: 
   
   // Get API URL from environment or use current domain with port 5000
   const getApiUrl = () => {
+    // Debug log to verify environment variables
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
+    
     // Use environment variable for API URL
     const backendUrl = process.env.NEXT_PUBLIC_API_URL;
     if (backendUrl) return backendUrl;
