@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback} from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import axios, { AxiosError } from 'axios';
+import { Buffer } from 'buffer';
 
 interface Props {
   onImageSelect: (imageUrl: string | null) => void;
@@ -13,24 +13,6 @@ export default function ImageUploader({ onImageSelect, onPredictionsReceived }: 
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Get API URL from environment or use current domain with port 5000
-  const getApiUrl = () => {
-    // Debug log to verify environment variables
-    console.log('NODE_ENV:', process.env.NODE_ENV);
-    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
-    
-    // Use environment variable for API URL
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (backendUrl) return backendUrl;
-    
-    // Fallback for local development only
-    if (process.env.NODE_ENV === 'development') {
-      return 'http://localhost:5000';
-    }
-    
-    throw new Error('NEXT_PUBLIC_API_URL environment variable is not set');
-  };
-
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -42,6 +24,7 @@ export default function ImageUploader({ onImageSelect, onPredictionsReceived }: 
   }, []);
 
   const handleImage = useCallback(async (file: File) => {
+    // Show image preview
     const reader = new FileReader();
     reader.onload = (e) => {
       onImageSelect(e.target?.result as string);
@@ -49,24 +32,36 @@ export default function ImageUploader({ onImageSelect, onPredictionsReceived }: 
     reader.readAsDataURL(file);
 
     setIsLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      console.log('Sending request to:', `${getApiUrl()}/predict`);
-      const response = await axios.post(`${getApiUrl()}/predict`, formData, {
+      // Convert image to base64
+      const buffer = await file.arrayBuffer();
+      const base64Image = Buffer.from(buffer).toString('base64');
+
+      // Send to our Next.js API route
+      const response = await fetch('/api/predict', {
+        method: 'POST',
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          data: base64Image
+        })
       });
-      onPredictionsReceived(response.data.predictions);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      onPredictionsReceived(result.predictions);
     } catch (error) {
       console.error('Error classifying image:', error);
-      // More detailed error message with type checking
-      const errorMessage = error instanceof AxiosError 
-        ? error.response?.data?.error 
-        : 'Failed to process image. Please try again.';
-      alert(errorMessage);
+      alert(error instanceof Error ? error.message : 'Failed to process image');
     } finally {
       setIsLoading(false);
     }
